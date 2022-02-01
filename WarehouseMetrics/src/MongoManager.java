@@ -10,7 +10,7 @@ public class MongoManager {
         ConnectionString uri = new ConnectionString("mongodb://localhost:27017");
         MongoClient myClient = MongoClients.create(uri);
         MongoDatabase conn_db = myClient.getDatabase("warehouse_metrics");
-        MongoCollection<Document> collection = conn_db.getCollection("Reviews");
+        MongoCollection<Document> collection = conn_db.getCollection("Products");
 
         Document doc = new Document("name", "MongoDB")
                 .append("count", 1)
