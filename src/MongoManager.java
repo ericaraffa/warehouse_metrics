@@ -2,6 +2,7 @@ import com.mongodb.ConnectionString;
 import com.mongodb.client.*;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import sun.reflect.FieldInfo;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -21,7 +22,6 @@ public class MongoManager {
         MongoClient myClient = MongoClients.create(uri);
         MongoDatabase conn_db = myClient.getDatabase("warehouse_metrics");
         MongoCollection<Document> collection = conn_db.getCollection("Products");
-
         Consumer<Document> printDocuments =  doc -> System.out.println(doc.toJson());
 
         Bson projectProducts = project(fields(include("title", "categories", "price"), computed("productID","$asin"), excludeId()));
@@ -72,23 +72,28 @@ public class MongoManager {
                 System.out.println("Invalid input, try again!");
             } catch (IOException ex) {
                 ex.printStackTrace();
+            } finally {
+                try {
+                    if (myClient != null)
+                        myClient.close();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
             }
         }
 
     }
 
-    // View Product by matadataid
+    // View Product by asin
     public void viewProduct(String productId) {
         ConnectionString uri = new ConnectionString("mongodb://localhost:27017");
         MongoClient myClient = MongoClients.create(uri);
         MongoDatabase conn_db = myClient.getDatabase("warehouse_metrics");
         MongoCollection<Document> collection = conn_db.getCollection("Products");
-
         Consumer<Document> printDocuments =  doc -> System.out.println(doc.toJson());
 
         Bson matchProduct = match(eq("asin", productId));
         collection.aggregate(Arrays.asList(matchProduct)).forEach(printDocuments);
-
     }
 
     // Show operations of the product brench
@@ -140,7 +145,6 @@ public class MongoManager {
         MongoClient myClient = MongoClients.create(uri);
         MongoDatabase conn_db = myClient.getDatabase("warehouse_metrics");
         MongoCollection<Document> collection = conn_db.getCollection("Products");
-
         Consumer<Document> printDocuments =  doc -> System.out.println(doc.toJson());
 
         Bson sortProducts = sort(descending("price"));
@@ -158,47 +162,39 @@ public class MongoManager {
         MongoCollection<Document> collection = conn_db.getCollection("Products");
 
         Consumer<Document> printDocuments =  doc -> System.out.println(doc.toJson());
-        int command;
 
         try {
             System.out.println("Insert the lower bound");
             int lowerPrice = Integer.parseInt(br.readLine());
             System.out.println("Insert the upper bound");
             int upperPrice = Integer.parseInt(br.readLine());
+            Bson matchPrice = match(and(gt("price", lowerPrice), lte("price", upperPrice)));
 
-            collection.find(and(gt("price", lowerPrice), lte("price", upperPrice))).forEach(printDocuments);
+            System.out.println("Sorting order?");
+            System.out.println("1) Ascending");
+            System.out.println("2) Descending");
+            System.out.println("3) No preferences");
+            int sortOrder = Integer.parseInt(br.readLine());
+            Bson sortProducts;
+            switch (sortOrder) {
+                case (1) :
+                    sortProducts = sort(ascending("price"));
+                    break;
 
-            /*
-            Bson sortProducts = sort(ascending("price"));
-            Bson projectProducts = project(fields(include("title", "categories", "price"), computed("productID","$asin"), excludeId()));
-            collection.aggregate(Arrays.asList(sortProducts, projectProducts)).forEach(printDocuments);
+                case (2) :
+                    sortProducts = sort(descending("price"));
+                    break;
 
-
-            // Sorting products by price
-            while (true) {
-                command = Integer.parseInt(br.readLine());
-                switch (command) {
-
-                    // Sort by price (ascending)
-                    case 1 :
-                        break;
-
-                    // Sort by price (descending)
-                    case 2 :
-                        break;
-
-                    // Go Back
-                    case 0 :
-                        return;
-
-                    // Invalid input
-                    default:
-                        System.out.println("Invalid input, try again!");
-                        break;
-                }
+                default :
+                    sortProducts = null;
+                    break;
             }
-             */
-
+            Bson projectProducts = project(fields(include("title", "categories", "price"), computed("productID","$asin"), excludeId()));
+            if (sortProducts == null) {
+                collection.aggregate(Arrays.asList(matchPrice, projectProducts)).forEach(printDocuments);
+            } else {
+                collection.aggregate(Arrays.asList(matchPrice, sortProducts, projectProducts)).forEach(printDocuments);
+            }
         } catch (NumberFormatException ex) {
             System.out.println("Invalid input!");
         } catch (IOException ex) {
