@@ -7,6 +7,7 @@ public class Main {
     public static void main(String[] args) {
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         MongoManager mongo = new MongoManager();
+        KeyValueManager kv = new KeyValueManager();
         int command;
 
         while (true) {
@@ -35,6 +36,16 @@ public class Main {
                         mongo.browseProductsByCategory(br);
                         break;
 
+                    // KeyValue Operations (TESTING PURPOSE)
+                    case 5 :
+                        mongo.showAnalytics(br);
+                        break;
+
+                    // KeyValue Operations (TESTING PURPOSE)
+                    case 6 :
+                        System.out.println("Insert wishlist ID");
+                        //kv.insertInWishlist("1", "1", "1", "name", "Beer");
+                        kv.browseWishlist("1");
                     // Exit
                     case 0 :
                         return;
@@ -51,7 +62,6 @@ public class Main {
                 ex.printStackTrace();
             }
         }
-
     }
 
     public static void showMainMenu() {
@@ -60,6 +70,8 @@ public class Main {
         System.out.println("2) Browse categories ");
         System.out.println("3) Browse products with price filter ");
         System.out.println("4) Browse products with category filter ");
+        System.out.println("5) Analytics ");
+        System.out.println("6) Browse wishlists TESTING");
         System.out.println("0) Exit application ");
     }
 }
