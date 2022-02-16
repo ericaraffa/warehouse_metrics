@@ -33,16 +33,6 @@ public class KeyValueManager {
         }
     }
 
-    // Retrieve the value correlated to the specified key (DRAFT)
-    public String getValue(String userId, String wishlistId, String productId, String attributeName) {
-        openDB();
-        String key = "wishlist:" + userId + ":" + wishlistId + ":" + productId + ":" + attributeName;
-        String value = asString(kvDatabase.get(bytes(key)));
-        System.out.println(value);
-        closeDB();
-        return value;
-    }
-
     // Wishlist branch
     public void browseWishlistOperations(User user, BufferedReader br) {
         browseWishlist(user);
@@ -104,6 +94,7 @@ public class KeyValueManager {
                         else {
                             deleteWishlist(user, wishlistId);
                         }
+                        System.out.println("Wishlist " + wishlistId + " deleted!");
                         break;
 
                     // Remove product from wishlist
@@ -123,6 +114,7 @@ public class KeyValueManager {
                         else {
                             deleteWishlistProduct(user.getUserID(), wishlistId, productId);
                         }
+                        System.out.println("Product " + productId + " deleted from wishlist " + wishlistId);
                         break;
 
                     // Go Back
@@ -372,7 +364,7 @@ public class KeyValueManager {
         return found;
     }
 
-    // Remove a product from a specified wishlist (ADMIN OPERATION)
+    // Remove a product from a specified wishlist
     public boolean adminDeleteFromWishlist(String userId, int wishlistId, String productId) {
         openDB();
         String compareKey = "wishlist:" + userId + ":" + wishlistId + ":" + productId;
@@ -428,7 +420,7 @@ public class KeyValueManager {
         }
     }
 
-    // Delete all the products of a specified wishlist of a user (ADMIN OPERATION)
+    // Delete all the products of a specified wishlist of a user
     private void adminDeleteWishlist(String userId, int wishlistId) {
         openDB();
         String compareKey = "wishlist:" + userId + ":" + wishlistId;
@@ -462,7 +454,7 @@ public class KeyValueManager {
         }
     }
 
-    // Remove a product from ALL wishlist (ADMIN OPERATION)
+    // Remove a product from ALL wishlist
     public void adminDeleteProduct(String productId) {
         openDB();
         try (DBIterator iterator = kvDatabase.iterator()) {

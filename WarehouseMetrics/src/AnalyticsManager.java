@@ -33,7 +33,7 @@ public class AnalyticsManager {
 
     // Create connection to MongoDB
     public void openDB() {
-        uri = new ConnectionString("mongodb://localhost:27017");
+        uri = new ConnectionString("mongodb://172.16.4.122:27020,172.16.4.123:27020,172.16.4.124:27020/?retryWrites=true&w=majority&timeout=10000");
         myClient = MongoClients.create(uri);
         conn_db = myClient.getDatabase("warehouse_metrics");
     }

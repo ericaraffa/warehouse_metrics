@@ -30,7 +30,7 @@ public class UserManager {
 
     // Create connection to MongoDB
     public void openDB() {
-        uri = new ConnectionString("mongodb://localhost:27017");
+        uri = new ConnectionString("mongodb://172.16.4.122:27020,172.16.4.123:27020,172.16.4.124:27020/?retryWrites=true&w=majority&timeout=10000");
         myClient = MongoClients.create(uri);
         conn_db = myClient.getDatabase("warehouse_metrics");
     }
@@ -128,58 +128,6 @@ public class UserManager {
         return (""+h).substring(0,13);
     }
 
-    // Update wishlistCounter of the specified product (UTILITY)
-    private void updateWishlistCounter() {
-        openDB();
-        collection = conn_db.getCollection("Users");
-
-        collection.updateMany(regex("userID", ""), set("wishlistCounter", 0));
-        //System.out.println("Products updated: " + updateResult.getModifiedCount());
-        closeDB();
-    }
-
-    // Retrive reviews of a specified product (UTILITY)
-    public ArrayList<Document> getReviews(String userId) {
-        //openDB();
-        MongoCollection<Document> reviewCollection = conn_db.getCollection("Reviews");
-        ArrayList<Document> resultReviews = new ArrayList<>();
-
-        try (MongoCursor<Document> cursor = reviewCollection.find(eq("reviewerID", userId)).iterator()) {
-            while (cursor.hasNext()) {
-                Document reviewDoc = cursor.next();
-                if(reviewDoc == null)
-                    return null;
-                resultReviews.add(reviewDoc);
-                // System.out.println(reviewDoc.toJson());
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-            resultReviews = null;
-        }
-        //closeDB();
-        return resultReviews;
-    }
-
-    // Initialize "reviews" attribute of each user (UTILITY)
-    public void updateUserReviews() {
-        openDB();
-        collection = conn_db.getCollection("Users");
-        ArrayList<Document> resultReviews = new ArrayList<>();
-
-        try (MongoCursor<Document> cursor = collection.find().iterator()) {
-            while (cursor.hasNext()) {
-                Document userDoc = cursor.next();
-                String userId = userDoc.get("userID").toString();
-                resultReviews = getReviews(userId);
-                collection.updateOne(eq("userID", userId), set("reviews", resultReviews));
-                // System.out.println("User updated: " + updateResult.getModifiedCount());
-            }
-        } catch (Exception ex) {
-            ex.printStackTrace();
-        }
-        closeDB();
-    }
-
     // Update number of wishlist of a user in the DB
     public void updateUserWishlistCount(User user) {
         openDB();
@@ -242,6 +190,7 @@ public class UserManager {
         }
     }
 
+    // User operations
     public void showUserOperations(User user, String selectedId, BufferedReader br){
         //User operations
         while(true){
@@ -289,6 +238,7 @@ public class UserManager {
         }
     }
 
+    // User operations Menu
     public void showUserOperationsMenu(){
         System.out.println("\nSelect an operation: ");
         System.out.println("1) Show reviews");
@@ -297,6 +247,7 @@ public class UserManager {
         System.out.println("0) Go back");
     }
 
+    // Show list of users
     public void showUsersList() {
         openDB();
         collection = conn_db.getCollection("Users");
@@ -306,7 +257,7 @@ public class UserManager {
         closeDB();
     }
 
-    // User brench menu
+    // User branch menu
     public void showUserMenu() {
         System.out.println("\nSelect an operation: ");
         System.out.println("1) Search Username");
@@ -390,7 +341,7 @@ public class UserManager {
         }
     }
 
-    // Delete review from DB (need usrID from current session)
+    // Delete review from DB
     public boolean deleteReview(String selectedId, BufferedReader br) { //user non-admin can't delete others' reviews
         openDB();
         collection = conn_db.getCollection("Users");
@@ -423,6 +374,7 @@ public class UserManager {
         return ret;
     }
 
+    // Show reviews of a user
     public void showUserReviews(String selectedId){
         openDB();
         collection = conn_db.getCollection("Users");
@@ -447,9 +399,7 @@ public class UserManager {
 
         Bson matchUser = match(eq("userID", userId));
 
-        Bson projectUser = project(fields(include("reviews.reviewerID", "reviews.asin", "reviews.overall",
-                                                             "reviews.reviewTime", "reviews.reviewText"),
-                                          excludeId()));
+        Bson projectUser = project(fields(include("userID", "username"), excludeId()));
 
         collection.aggregate(Arrays.asList(matchUser, projectUser)).forEach(printDocuments);
 
@@ -578,7 +528,7 @@ public class UserManager {
     }
 
 
-    // User brench menu
+    // User branch menu
     public void showAdminMenu() {
         System.out.println("\nSelect an operation: ");
         System.out.println("1) Add product ");

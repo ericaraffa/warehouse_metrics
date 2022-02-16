@@ -1,6 +1,3 @@
-import org.bson.Document;
-
-import javax.print.Doc;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
