@@ -1,5 +1,6 @@
 import com.mongodb.ConnectionString;
 import com.mongodb.client.*;
+import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -24,6 +25,7 @@ public class UserManager {
     MongoClient myClient = null;
     MongoDatabase conn_db = null;
     MongoCollection<Document> collection = null;
+    KeyValueManager kv = new KeyValueManager(); //DEVO INSERIRLO QUI?
 
     // Create connection to MongoDB
     public void openDB() {
@@ -93,7 +95,7 @@ public class UserManager {
 
             MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
             messageDigest.update(username.getBytes());
-            String userID = hash(username);
+            String userID = hash(username + password);
 
             Document userDoc = new Document("userID", userID)
                     .append("username", username)
@@ -135,7 +137,7 @@ public class UserManager {
         closeDB();
     }
 
-    // Retrive reviews of a specified product
+    // Retrive reviews of a specified product (UTILITY)
     public ArrayList<Document> getReviews(String userId) {
         //openDB();
         MongoCollection<Document> reviewCollection = conn_db.getCollection("Reviews");
@@ -177,6 +179,7 @@ public class UserManager {
         closeDB();
     }
 
+
     // Update number of wishlist of a user in the DB
     public void updateUserWishlistCount(User user) {
         openDB();
@@ -189,7 +192,7 @@ public class UserManager {
     }
 
     // Browse Users
-    public void browseUsers(BufferedReader br) {
+    public void browseUsers(User user, BufferedReader br) {
         openDB();
         collection = conn_db.getCollection("Users");
         Consumer<Document> printDocuments =  doc -> System.out.println(doc.toJson());
@@ -209,6 +212,9 @@ public class UserManager {
                     // View User
                     case 1 :
                         viewUser(br);
+                        System.out.println("\nInsert userID: ");
+                        String selectedId = br.readLine();
+                        showUserOperations(user, selectedId, br);
                         break;
 
                     // Go Back
@@ -264,5 +270,159 @@ public class UserManager {
             }
         }
     }
+
+    public void showUserReviews(String selectedId){
+        openDB();
+        collection = conn_db.getCollection("Users");
+        Consumer<Document> printDocuments = doc -> System.out.println(doc.toJson());
+
+        Bson matchUser = match(eq("userID", selectedId));
+
+        Bson projectUser = project(fields(include("reviews.reviewerID", "reviews.asin", "reviews.overall",
+                                                             "reviews.reviewTime", "reviews.reviewText"),
+                                          excludeId()));
+
+        collection.aggregate(Arrays.asList(matchUser, projectUser)).forEach(printDocuments);
+
+        closeDB();
+    }
+
+    // Delete review from DB (need usrID from current session) (NEED TO HANDLE THE CONSISTENCY REGARDING THE REVIEWS AND THE WISHLISTS)
+    public boolean deleteReview(String selectedId, BufferedReader br) { //user non-admin can't delete others' reviews
+        openDB();
+        collection = conn_db.getCollection("Users");
+        boolean ret = false;
+
+        try {
+            System.out.println("Insert ID (asin) to delete: "); //reviewId = asin
+            //control if id match user (if not admin) -> retry or go back
+            String productId = br.readLine();
+
+            //USERS handler
+            collection.updateOne(eq("userID", selectedId), Updates.pull("reviews", eq("asin", productId)));
+
+            //PRODUCTS handler
+            collection = conn_db.getCollection("Products");
+            collection.updateOne(eq("asin", productId), Updates.pull("reviews", eq("reviewerID", selectedId)));
+            ret = true;
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        closeDB();
+        return ret;
+    }
+
+    public void showUserOperationsMenu(){
+        System.out.println("\nSelect an operation: ");
+        System.out.println("1) Show reviews");
+        System.out.println("2) Show wishlists");
+        System.out.println("3) Delete review");
+        System.out.println("0) Go back");
+    }
+
+    public void showUserOperations(User user, String selectedId, BufferedReader br){
+        //User operations
+        while(true){
+            try {
+                showUserOperationsMenu();
+
+                int command = Integer.parseInt(br.readLine());
+
+                switch(command){
+                    //Show user Reviews
+                    case 1 :
+                        showUserReviews(selectedId);
+                        break;
+                    //Show user wishlists  DA FARE
+                    case 2 :
+                        kv.showUserWishlists(selectedId, br);
+                        break;
+
+                    //delete review
+                    case 3 :
+                        if(!user.isAdmin() && selectedId!=user.getUserID()){
+                            System.out.println("You can't delete others' reviews!");
+                            break;
+                        }
+                        showUserReviews(selectedId);
+                        boolean retDelete = deleteReview(selectedId, br);
+                        if(retDelete){
+                            System.out.println("Review deleted");
+                        } else {
+                            System.out.println("Error (delete), try again.");
+                        }
+                        break;
+                    //Go back
+                    case 0 :
+                        return;
+
+                    // Invalid input
+                    default :
+                        System.out.println("Invalid input, try again!");
+                        break;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+    }
+
+
+    public void showProfileMenu(){
+        System.out.println("\nSelect an operation: ");
+        System.out.println("1) Show reviews");
+        System.out.println("2) Show wishlists");
+        System.out.println("3) Delete review");
+        System.out.println("0) Go back");
+    }
+
+
+    public void showProfile(User user, BufferedReader br){
+        while (true) {
+            try {
+                showProfileMenu();
+                int command = Integer.parseInt(br.readLine());
+
+                switch (command){
+                    //Show Reviews
+                    case 1:
+                        showUserReviews(user.getUserID());
+                        break;
+
+                    //Show Wishlists
+                    case 2:
+                        kv.showUserWishlists(user.getUserID(), br);
+                        break;
+
+                        //Delete review
+                    case 3:
+                        showUserReviews(user.getUserID());
+                        boolean retDelete = deleteReview(user.getUserID(), br);
+                        if(retDelete){
+                            System.out.println("Review deleted");
+                        } else {
+                            System.out.println("Error (delete), try again.");
+                        }
+                        break;
+
+                    //Go back
+                    case 0:
+                        return;
+
+                    // Invalid input
+                    default :
+                        System.out.println("Invalid input, try again!");
+                        break;
+                }
+
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+
 
 }

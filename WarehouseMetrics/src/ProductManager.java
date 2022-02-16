@@ -426,6 +426,7 @@ public class ProductManager {
     }
 
     // Retrive reviews of a specified product
+    //UTILITY
     public ArrayList<Document> getReviews(String productId) {
         //openDB();
         MongoCollection<Document> reviewCollection = conn_db.getCollection("Reviews");
@@ -516,7 +517,7 @@ public class ProductManager {
             LocalDate curr_date = LocalDate.now();
             long seconds = System.currentTimeMillis() / 1000l;
 
-            Document newReview = new Document("id", 10)     // FOR TESTING
+            Document newReview = new Document("index", 10)     // FOR TESTING
                     .append("reviewerID", user.getUserID())            // Get from curr session
                     .append("asin", productID)
                     .append("reviewerName", user.getUsername())       // Get from curr session
@@ -540,9 +541,5 @@ public class ProductManager {
         closeDB();
     }
 
-    // Delete review from DB (need usrID from current session) (NEED TO HANDLE THE CONSISTENCY REGARDING THE REVIEWS AND THE WISHLISTS)
-    public void deleteReview() {
-
-    }
 
 }

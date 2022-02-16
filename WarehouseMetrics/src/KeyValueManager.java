@@ -68,7 +68,7 @@ public class KeyValueManager {
                             adminViewWishlist(userTargetId, wishlistId);
                         }
                         else {
-                            viewWishlist(user, wishlistId);
+                            viewWishlist(user.getUserID(), wishlistId);
                         }
                         break;
 
@@ -111,7 +111,7 @@ public class KeyValueManager {
                         browseWishlist(user);
                         System.out.println("Insert wishlist ID");
                         wishlistId = Integer.parseInt(br.readLine());
-                        viewWishlist(user, wishlistId);
+                        viewWishlist(user.getUserID(), wishlistId);
                         System.out.println("Insert ID of the product you want to delete");
                         String productId = br.readLine();
 
@@ -145,6 +145,7 @@ public class KeyValueManager {
     // Show wishlist of a user
     public void browseWishlist (User user) {
         openDB();
+        System.out.println("\nWishlists list: ");
         String compareKey = "wishlist:" + user.getUserID();
         String lastUserId = "";
         String lastWishlistId = "";
@@ -162,7 +163,7 @@ public class KeyValueManager {
                     else {
                         if (key.contains(compareKey)) {
                             System.out.println("Wishlist ID: " + wishlistKey[2]);
-                        }
+                        } //else empty list?
                     }
                 }
             }
@@ -185,9 +186,9 @@ public class KeyValueManager {
     }
 
     // Show the wishlist identified by wishlistId
-    public void viewWishlist(User user, int wishlistId) {
+    public void viewWishlist(String user, int wishlistId) {
         openDB();
-        String compareKey = "wishlist:" + user.getUserID() + ":" + wishlistId;
+        String compareKey = "wishlist:" + user + ":" + wishlistId;
 
         try (DBIterator iterator = kvDatabase.iterator()) {
             for (iterator.seekToFirst(); iterator.hasNext(); iterator.next()) {
@@ -225,6 +226,47 @@ public class KeyValueManager {
             ex.printStackTrace();
         } finally {
             closeDB();
+        }
+    }
+
+    //login user from another user profile
+    public void browseUserWishlist(String selectedId){
+        openDB();
+        System.out.println("\nWishlists list: ");
+        String compareKey = "wishlist:" + selectedId;
+        String lastUserId = "";
+        String lastWishlistId = "";
+        try (DBIterator iterator = kvDatabase.iterator()) {
+            for (iterator.seekToFirst(); iterator.hasNext(); iterator.next()) {
+                String key = asString(iterator.peekNext().getKey());
+                String[] wishlistKey = key.split(":");
+
+                if (!wishlistKey[1].contentEquals(lastUserId) || !wishlistKey[2].contentEquals(lastWishlistId)) {
+                    lastUserId = wishlistKey[1];
+                    lastWishlistId = wishlistKey[2];
+
+                    if (key.contains(compareKey)) {
+                        System.out.println("Wishlist ID: " + wishlistKey[2]);
+                    } //else empty list?
+                }
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        } finally {
+            closeDB();
+        }
+        closeDB();
+    }
+
+    public void showUserWishlists(String selectedId, BufferedReader br){
+        try {
+            browseUserWishlist(selectedId);
+            System.out.println("Insert wishlist ID");
+            int wishlistId = Integer.parseInt(br.readLine());
+            viewWishlist(selectedId, wishlistId);
+
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 

@@ -109,16 +109,19 @@ public class Main {
 
                     // Browse users
                     case 8 :
-                        userManager.browseUsers(br);
+                        userManager.browseUsers(user, br);
                         break;
 
                     // User Profile
                     case 9 :
                         System.out.println(user);
+                        userManager.showProfile(user, br);
                         break;
 
                     // Logout
                     case 0 :
+                        //userManager.deleteReview(user, br);
+
                         System.out.println("__________________________________________");
                         System.out.println("Logout");
                         System.out.println("__________________________________________");

@@ -6,6 +6,11 @@ import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.UnwindOptions;
 import org.bson.Document;
 import org.bson.conversions.Bson;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.core.aggregation.Aggregation;
+import org.springframework.data.mongodb.core.aggregation.AggregationResults;
+import org.springframework.data.mongodb.core.aggregation.ArithmeticOperators;
+import org.springframework.data.mongodb.core.query.Criteria;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -15,10 +20,12 @@ import java.util.function.Consumer;
 import static com.mongodb.client.model.Accumulators.sum;
 import static com.mongodb.client.model.Aggregates.*;
 import static com.mongodb.client.model.Aggregates.limit;
-import static com.mongodb.client.model.Filters.ne;
+import static com.mongodb.client.model.Filters.*;
 import static com.mongodb.client.model.Projections.*;
 import static com.mongodb.client.model.Projections.include;
+import static com.mongodb.client.model.Sorts.ascending;
 import static com.mongodb.client.model.Sorts.descending;
+import static org.springframework.data.mongodb.core.aggregation.Aggregation.newAggregation;
 
 public class AnalyticsManager {
 
@@ -41,6 +48,8 @@ public class AnalyticsManager {
 
     // Analytics brench
     public void showAnalytics(BufferedReader br) {
+        ProductManager productManager = new ProductManager();
+
         // Product menu
         while (true) {
             try {
@@ -53,13 +62,17 @@ public class AnalyticsManager {
                         viewMostSuggestedProducts(br);
                         break;
 
-                    // Top-k active users
+                    // Product trend
                     case 2 :
-                        viewMostActiveUsers(br);
+                        productManager.showProducts(); //show all products
+                        System.out.println("\nSelect a productID: ");
+                        String productId = br.readLine();
+                        viewProductTrend(productId);
                         break;
 
-                    // Aggregation on salesrank products
+                    // Top-k active users
                     case 3 :
+                        viewMostActiveUsers(br);
                         break;
 
                     // Go Back
@@ -119,8 +132,45 @@ public class AnalyticsManager {
     private void showAnalyticsMenu() {
         System.out.println("\nSelect an operation: ");
         System.out.println("1) Top-k suggested products ");
-        System.out.println("2) Top-k active users ");
+        System.out.println("2) Product trend ");
+        System.out.println("3) Top-k active users ");
         System.out.println("0) Go Back ");
+
+    }
+
+    //Product trend
+    public void viewProductTrend(String productId){
+        openDB();
+        collection = conn_db.getCollection("Products");
+        Consumer<Document> printDocuments = doc -> System.out.println(doc.toJson());
+
+
+        //Match asin==productId
+        Bson matchProduct = match(eq("asin", productId));
+        //Unwind reviews
+        UnwindOptions options = new UnwindOptions();
+        Bson unwindReviews = unwind("$reviews", options);
+        //Sort reviews by unix time asc 1
+        Bson sortReviews = sort(ascending("reviews.unixReviewTime"));
+
+        System.out.println("Sorted reviews: ");
+        collection.aggregate(Arrays.asList(matchProduct, unwindReviews, sortReviews)).forEach(printDocuments);
+
+        Criteria whereID = Criteria.byExample(Criteria.where("asin").equals(productId));
+
+
+        //.sum("overall").as("sumOverall")
+        /*
+        Aggregation pipeline = Aggregation.newAggregation(Aggregation.match(whereID),
+                                                            Aggregation.unwind("reviews"),
+                                                            Aggregation.group("reviewTime").count().as("numReviews"),
+                                                            Aggregation.sort(Sort.Direction.ASC, "unixReviewTime"),
+                                                            Aggregation.project("reviewTime").and("numReviews").as("totReviews")
+                    );
+
+        */
+
+        closeDB();
 
     }
 
