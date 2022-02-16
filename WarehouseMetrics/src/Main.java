@@ -109,12 +109,13 @@ public class Main {
 
                     // Browse users
                     case 8 :
-                        userManager.browseUsers(br);
+                        userManager.browseUsers(user, br);
                         break;
 
                     // User Profile
                     case 9 :
                         System.out.println(user);
+                        userManager.showProfile(user, br);
                         break;
 
                     // Admin zone

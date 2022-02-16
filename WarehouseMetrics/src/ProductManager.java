@@ -3,6 +3,7 @@ import com.mongodb.client.*;
 import com.mongodb.client.model.UnwindOptions;
 import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.DeleteResult;
+import com.mongodb.client.result.UpdateResult;
 import com.sun.javafx.binding.DoubleConstant;
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -68,6 +69,7 @@ public class ProductManager {
                 switch (command) {
                     // View Product
                     case 1 :
+                        showProducts();
                         Document product = viewProduct(br);
                         if (product == null) {
                             System.out.println("Product not found, try again!");
@@ -133,6 +135,7 @@ public class ProductManager {
     // Operations on products regarding reviews and wishlists
     private void showProductOperations(User user, Document product, BufferedReader br) {
         KeyValueManager kv = new KeyValueManager();
+        UserManager userManager = new UserManager();
         openDB();
         // Product Operations menu
         while (true) {
@@ -149,12 +152,27 @@ public class ProductManager {
 
                     // Add review
                     case 2 :
-                        insertReview(user, product.get("asin").toString(), br);
+                        boolean added = insertReview(user, product.get("asin").toString(), br);
+                        if (added) {
+                            System.out.println("New review added to the product!");
+                        } else {
+                            System.out.println("Error, please try again!");
+                        }
                         break;
 
                     // Delete review
                     case 3 :
-
+                        if(user.isAdmin()){
+                            System.out.println(product.get("reviews").toString());
+                        } else {
+                            userManager.showUserReviews(user.getUserID());
+                        }
+                        boolean retDelete = userManager.deleteReview(user.getUserID(), br);
+                        if(retDelete){
+                            System.out.println("Review deleted");
+                        } else {
+                            System.out.println("Error (delete), try again.");
+                        }
                         break;
 
                     // Add to wishlist
@@ -164,10 +182,8 @@ public class ProductManager {
                         System.out.println("\nSelect a wishlist");
                         wishlistId = Integer.parseInt(br.readLine());
                         boolean needUpdate = kv.insertInWishlist(user, product, wishlistId);
-
                         // New wishlist created
                         if (needUpdate) {
-                            UserManager userManager = new UserManager();
                             userManager.updateUserWishlistCount(user);
                         }
                         System.out.println("Product added to the wishlist");
@@ -443,7 +459,7 @@ public class ProductManager {
             double lowerPrice = Double.parseDouble(br.readLine());
             System.out.println("Insert the upper bound (between " + lowerPrice + " and 5)");
             double upperPrice = Double.parseDouble(br.readLine());
-            Bson matchSalesrank = match(and(gte("salesrank", lowerPrice), lte("salesrank", upperPrice)));
+            Bson matchSalesrank = match(and(gte("salesrank", lowerPrice), lte("salesrank", upperPrice), ne("price", "")));
             Bson projectProducts = project(fields(include("title", "salesrank", "price"), computed("productID","$asin"), excludeId()));
 
             System.out.println("Sorting order?");
@@ -635,9 +651,10 @@ public class ProductManager {
     }
 
     // Insert review in DB (need userID from current session)
-    public void insertReview(User user, String productID, BufferedReader br){
+    public boolean insertReview(User user, String productID, BufferedReader br){
         openDB();
         collection = conn_db.getCollection("Users");
+        boolean ret = false;
 
         try {
             System.out.println("Insert title: ");
@@ -663,17 +680,27 @@ public class ProductManager {
                     .append("reviewTime", dtf.format(curr_date));
 
             //USERS
-            collection.updateOne(eq("userID", user.getUserID()), Updates.addToSet("reviews", newReview));
+            UpdateResult updateResult = collection.updateOne(eq("userID", user.getUserID()), Updates.addToSet("reviews", newReview));
+            if (updateResult.getModifiedCount() == 0) {
+                ret = false;
+            } else {
+                ret = true;
+            }
 
             //PRODUCTS
             collection = conn_db.getCollection("Products");
-            collection.updateOne(eq("asin", productID), Updates.addToSet("reviews", newReview));
-
+            updateResult = collection.updateOne(eq("asin", productID), Updates.addToSet("reviews", newReview));
+            if (updateResult.getModifiedCount() == 0) {
+                ret = false;
+            } else {
+                ret = true;
+            }
 
         } catch (IOException e) {
             e.printStackTrace();
         }
         closeDB();
+        return ret;
     }
 
     // Hash function

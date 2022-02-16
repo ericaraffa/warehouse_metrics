@@ -14,12 +14,14 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.function.Consumer;
 
+import static com.mongodb.client.model.Accumulators.avg;
 import static com.mongodb.client.model.Accumulators.sum;
 import static com.mongodb.client.model.Aggregates.*;
 import static com.mongodb.client.model.Aggregates.limit;
 import static com.mongodb.client.model.Filters.*;
 import static com.mongodb.client.model.Projections.*;
 import static com.mongodb.client.model.Projections.include;
+import static com.mongodb.client.model.Sorts.ascending;
 import static com.mongodb.client.model.Sorts.descending;
 
 public class AnalyticsManager {
@@ -43,6 +45,8 @@ public class AnalyticsManager {
 
     // Analytics brench
     public void showAnalytics(User user, BufferedReader br) {
+        ProductManager productManager = new ProductManager();
+
         // Product menu
         while (true) {
             try {
@@ -55,9 +59,12 @@ public class AnalyticsManager {
                         viewMostSuggestedProducts(br);
                         break;
 
-                    // Aggregation on salesrank products
+                    // Product trend
                     case 2 :
-
+                        productManager.showProducts(); //show all products
+                        System.out.println("\nSelect a productID: ");
+                        String productId = br.readLine();
+                        viewProductTrend(productId);
                         break;
 
                     // Top-k active users
@@ -129,6 +136,33 @@ public class AnalyticsManager {
             System.out.println("3) Top-k active users ");
         }
         System.out.println("0) Go Back ");
+
+    }
+
+    //Product trend
+    public void viewProductTrend(String productId){
+        openDB();
+        collection = conn_db.getCollection("Products");
+        Consumer<Document> printDocuments = doc -> System.out.println(doc.toJson());
+
+        UnwindOptions options = new UnwindOptions();
+
+        //Match asin==productId
+        Bson matchProduct = match(eq("asin", productId));
+        //Unwind reviews
+        Bson unwindReviews = unwind("$reviews", options);
+        //Avg reviews
+        Bson avgReviews = group("$reviews.reviewTime", avg("avgReviews", "$reviews.overall"));
+        //Sort reviews by unix time asc 1
+        Bson sortReviews = sort(ascending("_id"));
+        //Project
+        Bson projectTrend = project(fields(excludeId(), computed("reviewTime", "$_id"), include("avgReviews")));
+
+        System.out.println("Sorted reviews: ");
+        collection.aggregate(Arrays.asList(matchProduct, unwindReviews, avgReviews, sortReviews, projectTrend)).forEach(printDocuments);
+
+        closeDB();
+
     }
 
     // Show the Top-K active users (ADMIN)

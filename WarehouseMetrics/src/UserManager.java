@@ -1,5 +1,6 @@
 import com.mongodb.ConnectionString;
 import com.mongodb.client.*;
+import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
@@ -25,6 +26,7 @@ public class UserManager {
     MongoClient myClient = null;
     MongoDatabase conn_db = null;
     MongoCollection<Document> collection = null;
+    KeyValueManager kv = new KeyValueManager();
 
     // Create connection to MongoDB
     public void openDB() {
@@ -136,7 +138,7 @@ public class UserManager {
         closeDB();
     }
 
-    // Retrive reviews of a specified product
+    // Retrive reviews of a specified product (UTILITY)
     public ArrayList<Document> getReviews(String userId) {
         //openDB();
         MongoCollection<Document> reviewCollection = conn_db.getCollection("Reviews");
@@ -190,13 +192,20 @@ public class UserManager {
     }
 
     // Browse Users
-    public void browseUsers(BufferedReader br) {
-        // Show list of users
-        showUsersList();
+    public void browseUsers(User user, BufferedReader br) {
 
         // User menu
         while (true) {
             try {
+                // Browse users
+                openDB();
+                collection = conn_db.getCollection("Users");
+                Consumer<Document> printDocuments =  doc -> System.out.println(doc.toJson());
+                Bson projectProducts = project(fields(include("username"), computed("ID","$userID"), excludeId()));
+                collection.aggregate(Arrays.asList(projectProducts)).forEach(printDocuments);
+                closeDB();
+
+                // User menu
                 showUserMenu();
                 int command = Integer.parseInt(br.readLine());
 
@@ -204,6 +213,9 @@ public class UserManager {
                     // View User
                     case 1 :
                         viewUser(br);
+                        System.out.println("\nInsert userID: ");
+                        String selectedId = br.readLine();
+                        showUserOperations(user, selectedId, br);
                         break;
 
                     // Go Back
@@ -228,6 +240,61 @@ public class UserManager {
                 }
             }
         }
+    }
+
+    public void showUserOperations(User user, String selectedId, BufferedReader br){
+        //User operations
+        while(true){
+            try {
+                showUserOperationsMenu();
+
+                int command = Integer.parseInt(br.readLine());
+
+                switch(command){
+                    //Show user Reviews
+                    case 1 :
+                        showUserReviews(selectedId);
+                        break;
+                    //Show user wishlists  DA FARE
+                    case 2 :
+                        kv.showUserWishlists(selectedId, br);
+                        break;
+
+                    //delete review
+                    case 3 :
+                        if (!user.isAdmin() && selectedId!=user.getUserID()) {
+                            System.out.println("You can't delete others' reviews!");
+                            break;
+                        }
+                        showUserReviews(selectedId);
+                        boolean retDelete = deleteReview(selectedId, br);
+                        if(retDelete){
+                            System.out.println("Review deleted");
+                        } else {
+                            System.out.println("Error (delete), try again.");
+                        }
+                        break;
+                    //Go back
+                    case 0 :
+                        return;
+
+                    // Invalid input
+                    default :
+                        System.out.println("Invalid input, try again!");
+                        break;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    public void showUserOperationsMenu(){
+        System.out.println("\nSelect an operation: ");
+        System.out.println("1) Show reviews");
+        System.out.println("2) Show wishlists");
+        System.out.println("3) Delete review");
+        System.out.println("0) Go back");
     }
 
     public void showUsersList() {
@@ -269,10 +336,122 @@ public class UserManager {
         }
     }
 
+    // Profile menu
+    public void showProfileMenu(){
+        System.out.println("\nSelect an operation: ");
+        System.out.println("1) Show reviews");
+        System.out.println("2) Show wishlists");
+        System.out.println("3) Delete review");
+        System.out.println("0) Go back");
+    }
+
+
+    // Show user profile
+    public void showProfile(User user, BufferedReader br){
+        while (true) {
+            try {
+                showProfileMenu();
+                int command = Integer.parseInt(br.readLine());
+
+                switch (command){
+                    //Show Reviews
+                    case 1:
+                        showUserReviews(user.getUserID());
+                        break;
+
+                    //Show Wishlists
+                    case 2:
+                        kv.showUserWishlists(user.getUserID(), br);
+                        break;
+
+                    //Delete review
+                    case 3:
+                        showUserReviews(user.getUserID());
+                        boolean retDelete = deleteReview(user.getUserID(), br);
+                        if(retDelete){
+                            System.out.println("Review deleted");
+                        } else {
+                            System.out.println("Error (delete), try again.");
+                        }
+                        break;
+
+                    //Go back
+                    case 0:
+                        return;
+
+                    // Invalid input
+                    default :
+                        System.out.println("Invalid input, try again!");
+                        break;
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    // Delete review from DB (need usrID from current session)
+    public boolean deleteReview(String selectedId, BufferedReader br) { //user non-admin can't delete others' reviews
+        openDB();
+        collection = conn_db.getCollection("Users");
+        boolean ret = false;
+
+        try {
+            System.out.println("Insert ID (asin) to delete: "); //reviewId = asin
+            //control if id match user (if not admin) -> retry or go back
+            String productId = br.readLine();
+
+            //USERS handler
+            UpdateResult updateResult = collection.updateOne(eq("userID", selectedId), Updates.pull("reviews", eq("asin", productId)));
+            if (updateResult.getModifiedCount() == 0) {
+                ret = false;
+            } else {
+                ret = true;
+            }
+            //PRODUCTS handler
+            collection = conn_db.getCollection("Products");
+            updateResult = collection.updateOne(eq("asin", productId), Updates.pull("reviews", eq("reviewerID", selectedId)));
+            if (updateResult.getModifiedCount() == 0) {
+                ret = false;
+            } else {
+                ret = true;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        closeDB();
+        return ret;
+    }
+
+    public void showUserReviews(String selectedId){
+        openDB();
+        collection = conn_db.getCollection("Users");
+        Consumer<Document> printDocuments = doc -> System.out.println(doc.toJson());
+
+        Bson matchUser = match(eq("userID", selectedId));
+
+        Bson projectUser = project(fields(include("reviews.reviewerID", "reviews.asin", "reviews.overall",
+                        "reviews.reviewTime", "reviews.reviewText"),
+                excludeId()));
+
+        collection.aggregate(Arrays.asList(matchUser, projectUser)).forEach(printDocuments);
+
+        closeDB();
+    }
+
     // Delete a user from database
     public void deleteUser(String userId) {
         openDB();
         collection = conn_db.getCollection("Users");
+        Consumer<Document> printDocuments = doc -> System.out.println(doc.toJson());
+
+        Bson matchUser = match(eq("userID", userId));
+
+        Bson projectUser = project(fields(include("reviews.reviewerID", "reviews.asin", "reviews.overall",
+                                                             "reviews.reviewTime", "reviews.reviewText"),
+                                          excludeId()));
+
+        collection.aggregate(Arrays.asList(matchUser, projectUser)).forEach(printDocuments);
 
         DeleteResult deleteResult = collection.deleteOne(eq("userID", userId));
         if (deleteResult.getDeletedCount() == 1) {
@@ -285,8 +464,6 @@ public class UserManager {
             System.out.println("Error occured deleting user " + userId + ", try again!");
         }
         closeDB();
-
-
     }
 
     // Admin branch
