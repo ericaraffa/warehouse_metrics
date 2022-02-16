@@ -68,7 +68,7 @@ public class Main {
         // Main Menu
         while (true) {
             try {
-                showMainMenu();
+                showMainMenu(user.isAdmin());
                 command = Integer.parseInt(br.readLine());
                 switch (command) {
 
@@ -99,7 +99,7 @@ public class Main {
 
                     // Analytics Operations
                     case 6 :
-                        analyticsManager.showAnalytics(br);
+                        analyticsManager.showAnalytics(user, br);
                         break;
 
                     // Wishlist Operations
@@ -115,6 +115,13 @@ public class Main {
                     // User Profile
                     case 9 :
                         System.out.println(user);
+                        break;
+
+                    // Admin zone
+                    case 10 :
+                        if (user.isAdmin()) {
+                            userManager.adminZone(br);
+                        }
                         break;
 
                     // Logout
@@ -138,7 +145,7 @@ public class Main {
         }
     }
 
-    public static void showMainMenu() {
+    public static void showMainMenu(boolean admin) {
         System.out.println("\nSelect an operation: ");
         System.out.println("1) Browse products ");
         System.out.println("2) Browse categories ");
@@ -149,6 +156,8 @@ public class Main {
         System.out.println("7) Browse wishlists ");
         System.out.println("8) Browse users ");
         System.out.println("9) Your Profile ");
+        if (admin)
+            System.out.println("10) Admin Area ");
         System.out.println("0) Logout ");
     }
 }

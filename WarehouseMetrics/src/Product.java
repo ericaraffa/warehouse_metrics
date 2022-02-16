@@ -1,47 +1,47 @@
 public class Product {
 
     String metadataid;
-    String asing;
-    String Category;
-    String Title;
-    Float Price;
+    String asin;
+    String categories;
+    String title;
+    double price;
 
-    public Product(String metadataid, String asing, String category, String title, Float price) {
+    public Product(String metadataid, String asin, String categories, String title, double price) {
         this.metadataid = metadataid;
-        this.asing = asing;
-        Category = category;
-        Title = title;
-        Price = price;
+        this.asin = asin;
+        this.categories = categories;
+        this.title = title;
+        this.price = price;
     }
 
     public String getMetadataid() {
         return metadataid;
     }
 
-    public String getAsing() {
-        return asing;
+    public String getAsin() {
+        return asin;
     }
 
-    public String getCategory() {
-        return Category;
+    public String getCategories() {
+        return categories;
     }
 
     public String getTitle() {
-        return Title;
+        return title;
     }
 
-    public Float getPrice() {
-        return Price;
+    public double getPrice() {
+        return price;
     }
 
     @Override
     public String toString() {
         return "Product{" +
                 "metadataid='" + metadataid + '\'' +
-                ", asing='" + asing + '\'' +
-                ", Category='" + Category + '\'' +
-                ", Title='" + Title + '\'' +
-                ", Price=" + Price +
+                ", asing='" + asin + '\'' +
+                ", Category='" + categories + '\'' +
+                ", Title='" + title + '\'' +
+                ", Price=" + price +
                 '}';
     }
 }

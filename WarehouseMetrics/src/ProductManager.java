@@ -3,6 +3,7 @@ import com.mongodb.client.*;
 import com.mongodb.client.model.UnwindOptions;
 import com.mongodb.client.model.Updates;
 import com.mongodb.client.result.DeleteResult;
+import com.sun.javafx.binding.DoubleConstant;
 import org.bson.Document;
 import org.bson.conversions.Bson;
 
@@ -15,6 +16,7 @@ import java.util.Arrays;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
+import static com.mongodb.client.model.Accumulators.avg;
 import static com.mongodb.client.model.Accumulators.sum;
 import static com.mongodb.client.model.Aggregates.*;
 import static com.mongodb.client.model.Filters.*;
@@ -56,11 +58,10 @@ public class ProductManager {
 
     // Products brench
     public void browseProducts(User user, BufferedReader br) {
-
+        showProducts();
         // Product menu
         while (true) {
             try {
-                showProducts();
                 showProductMenu();
                 int command = Integer.parseInt(br.readLine());
 
@@ -98,6 +99,11 @@ public class ProductManager {
                     // Browse products with keyword filter
                     case 6 :
                         browseProductsByKeyword(br);
+                        break;
+
+                    // Sort by salesrank
+                    case 7 :
+                        sortSalesrankProducts(br);
                         break;
 
                     // Go Back
@@ -148,6 +154,7 @@ public class ProductManager {
 
                     // Delete review
                     case 3 :
+
                         break;
 
                     // Add to wishlist
@@ -186,6 +193,15 @@ public class ProductManager {
                         }
                         else {
                             System.out.println("Product not found in wishlist!");
+                        }
+                        break;
+
+                    // Delete product
+                    case 6 :
+                        if (user.isAdmin()) {
+                            String productId = product.get("asin").toString();
+                            deleteProduct(productId);
+                            System.out.println("Product " + productId + " deleted from database!");
                         }
                         break;
 
@@ -264,6 +280,7 @@ public class ProductManager {
         System.out.println("4) Browse between two price bound ");
         System.out.println("5) Browse products by category ");
         System.out.println("6) Browse products by keyword ");
+        System.out.println("7) Browse products by rank ");
         System.out.println("0) Go Back ");
     }
 
@@ -415,14 +432,107 @@ public class ProductManager {
         }
     }
 
-    // Update salesrank of the specified product (UTILITY)
+    // Browse products with salesrank filter
+    public void sortSalesrankProducts(BufferedReader br) {
+        openDB();
+        collection = conn_db.getCollection("Products");
+        Consumer<Document> printDocuments =  doc -> System.out.println(doc.toJson());
+
+        try {
+            System.out.println("Insert the lower bound (between 0 and 5)");
+            double lowerPrice = Double.parseDouble(br.readLine());
+            System.out.println("Insert the upper bound (between " + lowerPrice + " and 5)");
+            double upperPrice = Double.parseDouble(br.readLine());
+            Bson matchSalesrank = match(and(gte("salesrank", lowerPrice), lte("salesrank", upperPrice)));
+            Bson projectProducts = project(fields(include("title", "salesrank", "price"), computed("productID","$asin"), excludeId()));
+
+            System.out.println("Sorting order?");
+            System.out.println("1) Ascending");
+            System.out.println("2) Descending");
+            System.out.println("3) No preferences");
+            int sortOrder = Integer.parseInt(br.readLine());
+            Bson sortProducts = null;
+            switch (sortOrder) {
+                case (1) :
+                    sortProducts = sort(ascending("salesrank"));
+                    break;
+
+                case (2) :
+                    sortProducts = sort(descending("salesrank"));
+                    break;
+
+                default :
+                    break;
+            }
+            if (sortProducts == null) {
+                collection.aggregate(Arrays.asList(matchSalesrank, projectProducts)).forEach(printDocuments);
+            } else {
+                collection.aggregate(Arrays.asList(matchSalesrank, sortProducts, projectProducts)).forEach(printDocuments);
+            }
+        } catch (NumberFormatException ex) {
+            System.out.println("Invalid input!");
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        } finally {
+            try {
+                if (myClient != null)
+                    closeDB();
+            } catch (Exception ex) {
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    /*
+    // Update salesrank of the ALL products (UTILITY)
     private void updateSalesrank() {
         openDB();
         collection = conn_db.getCollection("Products");
+        UnwindOptions options = new UnwindOptions();
+        double rank = 0;
 
-        collection.updateMany(regex("asin", ""), set("salesrank", 0.0));
-        //System.out.println("Products updated: " + updateResult.getModifiedCount());
+        try (MongoCursor<Document> cursor = collection.find().skip(23000).iterator()) {
+            while (cursor.hasNext()) {
+                Document productDoc = cursor.next();
+                String productId = productDoc.get("asin").toString();
+                options.preserveNullAndEmptyArrays(false);
+                Bson matchProducts = match(eq("asin", productId));
+                Bson unwindProducts = unwind("$reviews", options);
+                Bson groupProducts = group("$asin", avg("salesrank", "$reviews.overall"));
+                Document salesrankDoc = collection.aggregate(Arrays.asList(matchProducts, unwindProducts, groupProducts)).first();
+                if (salesrankDoc != null) {
+                    rank = Double.parseDouble(salesrankDoc.get("salesrank").toString());
+                    collection.updateOne(eq("asin", productId), set("salesrank", rank));
+                }
+            }
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+
         closeDB();
+    }
+
+     */
+
+    // Calculate salesrank of a product
+    public double calculateSalesrank(String productId) {
+        openDB();
+        MongoCollection<Document> productsCollection = conn_db.getCollection("Products");
+        double avgOverall = 0;
+
+        try  {
+            UnwindOptions options = new UnwindOptions();
+            options.preserveNullAndEmptyArrays(false);
+            Bson matchProducts = match(eq("asin", productId));
+            Bson unwindProducts = unwind("$related", options);
+            Bson groupProducts = group("$related", sum("occurrences", 1L));
+            Document salesrankDoc = productsCollection.aggregate(Arrays.asList(matchProducts, unwindProducts, groupProducts)).first();
+            avgOverall = Double.parseDouble(salesrankDoc.get("salesrank").toString());
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
+        closeDB();
+        return avgOverall;
     }
 
     // Retrive reviews of a specified product
@@ -447,6 +557,7 @@ public class ProductManager {
         return resultReviews;
     }
 
+    /*
     // Initialize "reviews" attribute of each product (UTILITY)
     public void updateProductReviews() {
         openDB();
@@ -468,37 +579,62 @@ public class ProductManager {
         closeDB();
     }
 
-    // Insert a product into the DB (METADATAID and ASIN?)
-    private void insertProduct(String metadata, String asin, String category, String title, double price) {
+     */
+
+    // Insert a product into the DB (METADATAID and ASIN?) IF ADMIN
+    public boolean insertProduct(BufferedReader br) {
         openDB();
         collection = conn_db.getCollection("Products");
+        boolean result = false;
 
-        Document newProduct = new Document("metadata", metadata)
-                .append("asin", asin)
-                .append("salesrank", 0.0)
-                .append("imurl", "")
-                .append("categories", category)
-                .append("title", title)
-                .append("price", price)
-                .append("related", Arrays.asList());
+        try {
+            System.out.println("Insert a category: ");
+            String categories = br.readLine();
+            System.out.println("Insert a title:");
+            String title = br.readLine();
+            System.out.println("Insert a price: ");
+            double price = Double.parseDouble(br.readLine());
 
-        collection.insertOne(newProduct);
-        System.out.println("New product:\n" + newProduct.toJson());
+            String metadataid = hash(categories + title);
+            String asin = hash(title + price);
+
+            Document newProduct = new Document("metadata", metadataid)
+                    .append("asin", asin)
+                    .append("salesrank", 0.0)
+                    .append("imurl", "")
+                    .append("categories", categories)
+                    .append("title", title)
+                    .append("price", price)
+                    .append("related", new ArrayList<>());
+
+            collection.insertOne(newProduct);
+            System.out.println("New product:\n" + newProduct.toJson());
+            result = true;
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
         closeDB();
+        return result;
     }
 
     // Delete a product from the DB (NEED TO HANDLE THE CONSISTENCY REGARDING THE REVIEWS AND THE WISHLISTS)
-    private void deleteProduct(String productId) {
+    public void deleteProduct(String productId) {
         openDB();
         collection = conn_db.getCollection("Products");
 
-        Bson matchProduct = match(eq("asin", productId));
-        DeleteResult deleteResult = collection.deleteOne(matchProduct);
-        System.out.println("Products deleted: " + deleteResult.getDeletedCount());
+        DeleteResult deleteResult = collection.deleteOne(eq("asin", productId));
+        if (deleteResult.getDeletedCount() == 1) {
+            System.out.println("Product " + productId + " deleted! ");
+            KeyValueManager kv = new KeyValueManager();
+            kv.adminDeleteProduct(productId);
+        }
+        else {
+            System.out.println("Error occured deleting product " + productId + ", try again!");
+        }
         closeDB();
     }
 
-    // Insert review in DB (need usrID from current session)
+    // Insert review in DB (need userID from current session)
     public void insertReview(User user, String productID, BufferedReader br){
         openDB();
         collection = conn_db.getCollection("Users");
@@ -516,7 +652,7 @@ public class ProductManager {
             LocalDate curr_date = LocalDate.now();
             long seconds = System.currentTimeMillis() / 1000l;
 
-            Document newReview = new Document("id", 10)     // FOR TESTING
+            Document newReview = new Document("id", hash(user.getUserID() + productID))
                     .append("reviewerID", user.getUserID())            // Get from curr session
                     .append("asin", productID)
                     .append("reviewerName", user.getUsername())       // Get from curr session
@@ -540,9 +676,17 @@ public class ProductManager {
         closeDB();
     }
 
-    // Delete review from DB (need usrID from current session) (NEED TO HANDLE THE CONSISTENCY REGARDING THE REVIEWS AND THE WISHLISTS)
-    public void deleteReview() {
+    // Hash function
+    public static String hash(String string) {
+        long h = 1125899906842597L;
+        int len = string.length();
 
+        for (int i = 0; i < len; i++) {
+            h = 31*h + string.charAt(i);
+        }
+        if(h<0)
+            return (""+(h*-1)).substring(0,13);
+        return (""+h).substring(0,13);
     }
 
 }

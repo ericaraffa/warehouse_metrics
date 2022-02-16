@@ -4,17 +4,17 @@ public class Review {
     String reviewerID;
     String asin;
     String reviewerName;
-    String ReviewText;
-    Float Overall;
-    String unixRevTime;
+    String reviewText;
+    double overall;
+    int unixRevTime;
     Date reviewTime;
 
-    public Review(String reviewerID, String asin, String reviewerName, String reviewText, Float overall, String unixRevTime, Date reviewTime) {
+    public Review(String reviewerID, String asin, String reviewerName, String reviewText, double overall, int unixRevTime, Date reviewTime) {
         this.reviewerID = reviewerID;
         this.asin = asin;
         this.reviewerName = reviewerName;
-        ReviewText = reviewText;
-        Overall = overall;
+        this.reviewText = reviewText;
+        this.overall = overall;
         this.unixRevTime = unixRevTime;
         this.reviewTime = reviewTime;
     }
@@ -32,14 +32,14 @@ public class Review {
     }
 
     public String getReviewText() {
-        return ReviewText;
+        return reviewText;
     }
 
-    public Float getOverall() {
-        return Overall;
+    public double getOverall() {
+        return overall;
     }
 
-    public String getUnixRevTime() {
+    public int getUnixRevTime() {
         return unixRevTime;
     }
 
@@ -53,8 +53,8 @@ public class Review {
                 "reviewerID='" + reviewerID + '\'' +
                 ", asin='" + asin + '\'' +
                 ", reviewerName='" + reviewerName + '\'' +
-                ", ReviewText='" + ReviewText + '\'' +
-                ", Overall=" + Overall +
+                ", ReviewText='" + reviewText + '\'' +
+                ", Overall=" + overall +
                 ", unixRevTime='" + unixRevTime + '\'' +
                 ", reviewTime=" + reviewTime +
                 '}';

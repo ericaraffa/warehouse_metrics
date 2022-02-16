@@ -1,5 +1,6 @@
 import com.mongodb.ConnectionString;
 import com.mongodb.client.*;
+import com.mongodb.client.result.DeleteResult;
 import com.mongodb.client.result.UpdateResult;
 import org.bson.Document;
 import org.bson.conversions.Bson;
@@ -93,7 +94,7 @@ public class UserManager {
 
             MessageDigest messageDigest = MessageDigest.getInstance("SHA-256");
             messageDigest.update(username.getBytes());
-            String userID = hash(username);
+            String userID = hash(username + password);
 
             Document userDoc = new Document("userID", userID)
                     .append("username", username)
@@ -163,7 +164,7 @@ public class UserManager {
         collection = conn_db.getCollection("Users");
         ArrayList<Document> resultReviews = new ArrayList<>();
 
-        try (MongoCursor<Document> cursor = collection.find().skip(26500).iterator()) {
+        try (MongoCursor<Document> cursor = collection.find().iterator()) {
             while (cursor.hasNext()) {
                 Document userDoc = cursor.next();
                 String userId = userDoc.get("userID").toString();
@@ -190,14 +191,8 @@ public class UserManager {
 
     // Browse Users
     public void browseUsers(BufferedReader br) {
-        openDB();
-        collection = conn_db.getCollection("Users");
-        Consumer<Document> printDocuments =  doc -> System.out.println(doc.toJson());
-
-        Bson projectProducts = project(fields(include("username"), computed("ID","$userID"), excludeId()));
-        collection.aggregate(Arrays.asList(projectProducts)).forEach(printDocuments);
-
-        closeDB();
+        // Show list of users
+        showUsersList();
 
         // User menu
         while (true) {
@@ -235,6 +230,15 @@ public class UserManager {
         }
     }
 
+    public void showUsersList() {
+        openDB();
+        collection = conn_db.getCollection("Users");
+        Consumer<Document> printDocuments =  doc -> System.out.println(doc.toJson());
+        Bson projectProducts = project(fields(include("username"), computed("ID","$userID"), excludeId()));
+        collection.aggregate(Arrays.asList(projectProducts)).forEach(printDocuments);
+        closeDB();
+    }
+
     // User brench menu
     public void showUserMenu() {
         System.out.println("\nSelect an operation: ");
@@ -263,6 +267,149 @@ public class UserManager {
                 ex.printStackTrace();
             }
         }
+    }
+
+    // Delete a user from database
+    public void deleteUser(String userId) {
+        openDB();
+        collection = conn_db.getCollection("Users");
+
+        DeleteResult deleteResult = collection.deleteOne(eq("userID", userId));
+        if (deleteResult.getDeletedCount() == 1) {
+            // Delete also from K-V database
+            KeyValueManager kv = new KeyValueManager();
+            kv.adminDeleteUser(userId);
+            System.out.println("User " + userId + " deleted! ");
+        }
+        else {
+            System.out.println("Error occured deleting user " + userId + ", try again!");
+        }
+        closeDB();
+
+
+    }
+
+    // Admin branch
+    public void adminZone(BufferedReader br) {
+        ProductManager productManager = new ProductManager();
+        String targetUserId;
+        // Admin menu
+        while (true) {
+            try {
+                showAdminMenu();
+                int command = Integer.parseInt(br.readLine());
+
+                switch (command) {
+                    // Add product
+                    case 1 :
+                        boolean added = productManager.insertProduct(br);
+                        if (!added)
+                            System.out.println("Error, try again!");
+                        break;
+
+                    // Delete product
+                    case 2 :
+                        // Show list of products
+                        productManager.showProducts();
+                        System.out.println("Insert a product ID: ");
+                        String productId = br.readLine();
+                        productManager.deleteProduct(productId);
+                        break;
+
+                    // Add user
+                    case 3 :
+                        if (registerUser(br) == null)
+                            System.out.println("Error in user registration, try again!");
+                        break;
+
+                    // Delete user
+                    case 4 :
+                        // Show list of users
+                        showUsersList();
+                        System.out.println("\nInsert a userID: ");
+                        targetUserId = br.readLine();
+                        deleteUser(targetUserId);
+                        break;
+
+                    // Promote/demote user
+                    case 5 :
+                        // Show list of users
+                        showUsersList();
+                        System.out.println("\nInsert a userID: ");
+                        targetUserId = br.readLine();
+                        System.out.println("\nDo you want to promote or demote the selected user? ");
+                        System.out.println("1) Promote ");
+                        System.out.println("2) Demote ");
+                        int option = Integer.parseInt(br.readLine());
+                        switch (option) {
+                            // Promote
+                            case 1 :
+                                changeUserRole(targetUserId, true);
+                                break;
+
+                            // Demote
+                            case 2 :
+                                changeUserRole(targetUserId, false);
+                                break;
+
+                            // Invalid input
+                            default:
+                                System.out.println("Invalid input, try again!");
+                                break;
+                        }
+                        break;
+
+                    // Go Back
+                    case 0 :
+                        return;
+
+                    // Invalid input
+                    default :
+                        System.out.println("Invalid input, try again!");
+                        break;
+                }
+            } catch (NumberFormatException ex) {
+                System.out.println("Invalid input, try again!");
+            } catch (IOException ex) {
+                ex.printStackTrace();
+            } finally {
+                try {
+                    if (myClient != null)
+                        closeDB();
+                } catch (Exception ex) {
+                    ex.printStackTrace();
+                }
+            }
+        }
+    }
+
+    // Promote a user to admin
+    public void changeUserRole(String userId, boolean admin) {
+        openDB();
+        collection = conn_db.getCollection("Users");
+        UpdateResult updateResult = collection.updateOne(eq("userID", userId), set("Admin", admin));
+        if (updateResult.getModifiedCount() == 1) {
+            if (admin)
+                System.out.println("User " + userId + " promoted to admin role!");
+            else
+                System.out.println("User " + userId + " demoted!");
+        }
+        else {
+            System.out.println("Error during promotion of user " + userId + ", try again!");
+        }
+        closeDB();
+    }
+
+
+    // User brench menu
+    public void showAdminMenu() {
+        System.out.println("\nSelect an operation: ");
+        System.out.println("1) Add product ");
+        System.out.println("2) Remove product ");
+        System.out.println("3) Add user ");
+        System.out.println("4) Remove user ");
+        System.out.println("5) Promote/Demote user ");
+        System.out.println("0) Go Back ");
     }
 
 }

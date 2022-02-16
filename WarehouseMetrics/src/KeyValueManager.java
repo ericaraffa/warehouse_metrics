@@ -43,7 +43,7 @@ public class KeyValueManager {
         return value;
     }
 
-    // Wishlist brench
+    // Wishlist branch
     public void browseWishlistOperations(User user, BufferedReader br) {
         browseWishlist(user);
         int wishlistId;
@@ -311,7 +311,6 @@ public class KeyValueManager {
         try (DBIterator iterator = kvDatabase.iterator()) {
             for (iterator.seekToFirst(); iterator.hasNext(); iterator.next()) {
                 String key = asString(iterator.peekNext().getKey());
-                // String[] wishlistKey = key.split(":");
 
                 if (key.contains(compareKey)) {
                     String whislistKey = "wishlist:" + userId + ":" + wishlistId + ":" + productId + ":categories";
@@ -339,7 +338,6 @@ public class KeyValueManager {
         try (DBIterator iterator = kvDatabase.iterator()) {
             for (iterator.seekToFirst(); iterator.hasNext(); iterator.next()) {
                 String key = asString(iterator.peekNext().getKey());
-                // String[] wishlistKey = key.split(":");
 
                 if (key.contains(compareKey)) {
                     String whislistKey = "wishlist:" + userId + ":" + wishlistId + ":" + productId + ":categories";
@@ -397,6 +395,41 @@ public class KeyValueManager {
                 String key = asString(iterator.peekNext().getKey());
                 if (key.contains(compareKey))
                     kvDatabase.delete(bytes(key));
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        } finally {
+            closeDB();
+        }
+    }
+
+    // Delete ALL the wishlist of a user from K-V database
+    public void adminDeleteUser(String userId) {
+        openDB();
+        String compareKey = "wishlist:" + userId;
+        try (DBIterator iterator = kvDatabase.iterator()) {
+            for (iterator.seekToFirst(); iterator.hasNext(); iterator.next()) {
+                String key = asString(iterator.peekNext().getKey());
+                if (key.contains(compareKey))
+                    kvDatabase.delete(bytes(key));
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        } finally {
+            closeDB();
+        }
+    }
+
+    // Remove a product from ALL wishlist (ADMIN OPERATION)
+    public void adminDeleteProduct(String productId) {
+        openDB();
+        try (DBIterator iterator = kvDatabase.iterator()) {
+            for (iterator.seekToFirst(); iterator.hasNext(); iterator.next()) {
+                String key = asString(iterator.peekNext().getKey());
+                String[] wishlistKey = key.split(":");
+                if (wishlistKey[3].contentEquals(productId)) {
+                    kvDatabase.delete(bytes(key));
+                }
             }
         } catch (IOException ex) {
             ex.printStackTrace();
