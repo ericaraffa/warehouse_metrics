@@ -6,57 +6,127 @@ public class Main {
 
     public static void main(String[] args) {
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
-        MongoManager mongo = new MongoManager();
         KeyValueManager kv = new KeyValueManager();
-        int command;
+        ProductManager productManager = new ProductManager();
+        UserManager userManager = new UserManager();
+        AnalyticsManager analyticsManager = new AnalyticsManager();
+        User user = null;
 
+        int command;
+        boolean logged = false;
+
+        // Register
+        System.out.println("\nSelect an operation: ");
+        System.out.println("1) Login ");
+        System.out.println("2) Register ");
+
+        // Login/Register Menu
+        while (!logged) {
+            try {
+                command = Integer.parseInt(br.readLine());
+                switch (command) {
+                    // Login
+                    case 1 :
+                        while (true) {
+                            user = userManager.loginUser(br);
+                            if (user != null) {
+                                logged = true;
+                                break;
+                            }
+                            System.out.println("Please try again!");
+                        }
+                        break;
+
+                    // Register
+                    case 2 :
+                        while (true) {
+                            user = userManager.registerUser(br);
+                            if (user != null) {
+                                logged = true;
+                                break;
+                            }
+                            System.out.println("Please try again!");
+                        }
+                        break;
+
+                    // Invalid input
+                    default :
+                        System.out.println("Invalid input, try again!");
+                        break;
+                }
+            } catch (NumberFormatException ex) {
+                System.out.println("Invalid input, try again!");
+                continue;
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+
+        // Main Menu
         while (true) {
             try {
-                showMainMenu();
+                showMainMenu(user.isAdmin());
                 command = Integer.parseInt(br.readLine());
                 switch (command) {
 
                     // Browse products
                     case 1 :
-                        mongo.browseProducts(br);
+                        productManager.browseProducts(user, br);
                         break;
 
-                    // Browse products
+                    // Browse categories
                     case 2 :
-                        mongo.browseCategories();
+                        productManager.browseCategories();
                         break;
 
                     // Browse products with price filter
                     case 3 :
-                        mongo.browseProductsByPrice(br);
+                        productManager.browseProductsByPrice(br);
                         break;
 
                     // Browse products with category filter
                     case 4 :
-                        mongo.browseProductsByCategory(br);
+                        productManager.browseProductsByCategory(br);
                         break;
 
                     // Browse products with keyword filter
                     case 5 :
-                        mongo.browseProductsByKeyword(br);
+                        productManager.browseProductsByKeyword(br);
                         break;
 
-                    // KeyValue Operations
+                    // Analytics Operations
                     case 6 :
-                        mongo.showAnalytics(br);
+                        analyticsManager.showAnalytics(user, br);
                         break;
 
-                    // KeyValue Operations (TESTING PURPOSE)
+                    // Wishlist Operations
                     case 7 :
-                        // System.out.println("Insert wishlist ID");
-                        kv.insertInWishlist("A2STD12XLS4DK5", "1", "B0007UDXF2", "categories", "Clothing");
-                        kv.insertInWishlist("A2STD12XLS4DK5", "1", "B0007UDXF2", "title", "Rainbow Sandals Women's Premier Leather Single Layer Narrow Strap");
-                        kv.insertInWishlist("A2STD12XLS4DK5", "1", "B0007UDXF2", "price", "");
-                        kv.viewWishlist("A2STD12XLS4DK5");
+                        kv.browseWishlistOperations(user, br);
                         break;
 
-                    // Exit
+                    // Browse users
+                    case 8 :
+                        userManager.browseUsers(user, br);
+                        break;
+
+                    // User Profile
+                    case 9 :
+                        System.out.println(user);
+                        userManager.showProfile(user, br);
+                        break;
+
+                    // Admin zone
+                    case 10 :
+                        if (user.isAdmin()) {
+                            userManager.adminZone(br);
+                        }
+                        break;
+
+                    // Logout
                     case 0 :
+                        System.out.println("__________________________________________");
+                        System.out.println("Logout");
+                        System.out.println("__________________________________________");
                         return;
 
                     // Invalid input
@@ -73,7 +143,7 @@ public class Main {
         }
     }
 
-    public static void showMainMenu() {
+    public static void showMainMenu(boolean admin) {
         System.out.println("\nSelect an operation: ");
         System.out.println("1) Browse products ");
         System.out.println("2) Browse categories ");
@@ -81,7 +151,11 @@ public class Main {
         System.out.println("4) Browse products by category ");
         System.out.println("5) Browse products by keyword ");
         System.out.println("6) Analytics ");
-        System.out.println("7) Browse wishlists TESTING");
-        System.out.println("0) Exit application ");
+        System.out.println("7) Browse wishlists ");
+        System.out.println("8) Browse users ");
+        System.out.println("9) Your Profile ");
+        if (admin)
+            System.out.println("10) Admin Area ");
+        System.out.println("0) Logout ");
     }
 }
